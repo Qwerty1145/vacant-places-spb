@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Перевод на бюджет в вузы СПб</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script defer src="./index.js"></script>
+  </head>
+  <body class="page page-index">
+    <div class="bg-shape bg-shape-a"></div>
+    <div class="bg-shape bg-shape-b"></div>
+
+    <header class="hero panel">
+      <p class="eyebrow">Каталог вузов</p>
+      <h1>Профили вузов с вакантными местами для перевода</h1>
+      <p class="hero-text">
+        В таблице показаны все вузы из актуального датасета. Переходите в профиль, чтобы увидеть
+        извлечённые вакантные места, процедуру перевода и даты кампаний.
+      </p>
+      <div class="meta-row">
+        <span id="generatedAt">Загрузка данных...</span>
+        <span id="statsLine"></span>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel controls">
+        <label class="control-item">
+          <span>Поиск по вузу</span>
+          <input id="searchInput" type="text" placeholder="Например: ИТМО, ГУАП, СПбГУ..." />
+        </label>
+        <label class="control-item">
+          <span>Статус извлечения таблицы</span>
+          <select id="statusSelect">
+            <option value="all">Все</option>
+            <option value="ok">Таблица найдена</option>
+            <option value="partial">Частично</option>
+            <option value="error">Ошибка</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="panel table-panel">
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Вуз</th>
+                <th>Вакантные места</th>
+                <th>Дата начала приёма</th>
+                <th>Источник</th>
+                <th>Профиль</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

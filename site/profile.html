@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Профиль вуза</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script defer src="./profile.js"></script>
+  </head>
+  <body class="page page-profile">
+    <div class="bg-shape bg-shape-a"></div>
+    <div class="bg-shape bg-shape-c"></div>
+
+    <header class="panel hero profile-hero">
+      <a class="back-link" href="./catalog.html">← К главной таблице</a>
+      <h1 id="universityName">Профиль вуза</h1>
+      <div class="meta-row">
+        <span id="statusBadge"></span>
+      </div>
+      <p id="mainSource"></p>
+    </header>
+
+    <main class="profile-grid">
+      <section class="panel full">
+        <h2>Вакантные места (ключевой раздел)</h2>
+        <div class="controls compact">
+          <label class="control-item">
+            <span>Направление / код / программа</span>
+            <input id="vacancySearch" type="text" placeholder="Код, направление, программа..." />
+          </label>
+          <label class="control-item">
+            <span>Курс</span>
+            <select id="courseFilter">
+              <option value="">Все</option>
+            </select>
+          </label>
+          <label class="control-item">
+            <span>Направление</span>
+            <select id="directionFilter">
+              <option value="">Все</option>
+            </select>
+          </label>
+          <label class="control-item">
+            <span>Уровень образования</span>
+            <select id="levelFilter">
+              <option value="">Все</option>
+            </select>
+          </label>
+          <label class="control-item control-check">
+            <input id="budgetOnly" type="checkbox" />
+            <span>Только с бюджетом</span>
+          </label>
+        </div>
+        <p id="vacancyMeta" class="muted"></p>
+        <div class="table-wrapper">
+          <table id="vacancyTable">
+            <thead id="vacancyHead"></thead>
+            <tbody id="vacancyBody"></tbody>
+          </table>
+        </div>
+        <p id="vacancyMessage" class="muted"></p>
+      </section>
+
+      <section class="panel">
+        <h2>Процедура и особенности поступления</h2>
+        <dl class="info-list">
+          <dt>Волны переводов</dt>
+          <dd id="wavesText"></dd>
+          <dt>Условия перевода</dt>
+          <dd id="conditionsText"></dd>
+          <dt>Примечания</dt>
+          <dd id="notesText"></dd>
+        </dl>
+      </section>
+
+      <section class="panel">
+        <h2>Даты начала приёмных кампаний</h2>
+        <div class="season-grid">
+          <div>
+            <h3>Зимняя кампания</h3>
+            <ul id="winterDates"></ul>
+          </div>
+          <div>
+            <h3>Летняя кампания</h3>
+            <ul id="summerDates"></ul>
+          </div>
+        </div>
+        <h3>Иные/неразмеченные даты</h3>
+        <ul id="otherDates"></ul>
+      </section>
+
+      <section class="panel">
+        <h2>Общежитие</h2>
+        <div id="dormitoryStatus"></div>
+        <p id="dormitorySkeleton">
+          Раздел подготовлен как каркас. После уточнения данных добавим факт наличия, условия и
+          порядок предоставления общежития.
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>Контакты</h2>
+        <p id="contactsText"></p>
+      </section>
+    </main>
+  </body>
+</html>
