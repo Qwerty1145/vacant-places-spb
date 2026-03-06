@@ -219,6 +219,308 @@ function getVacanciesForUni(uni) {
   return Array.isArray(rows) ? rows : [];
 }
 
+/* ===== TIMELINE: date parser + components ===== */
+var RU_MONTH_STEMS = [
+  ["январ", 0], ["феврал", 1], ["март", 2], ["мар", 2], ["апрел", 3],
+  ["май", 4], ["мая", 4], ["мае", 4], ["июн", 5], ["июл", 6],
+  ["август", 7], ["авг", 7], ["сентябр", 8], ["октябр", 9],
+  ["ноябр", 10], ["декабр", 11], ["дек", 11]
+];
+function ruMonthIdx(s) {
+  if (!s) return -1;
+  var lc = s.toLowerCase().replace(/ё/g, "е");
+  for (var i = 0; i < RU_MONTH_STEMS.length; i++) {
+    if (lc.startsWith(RU_MONTH_STEMS[i][0])) return RU_MONTH_STEMS[i][1];
+  }
+  return -1;
+}
+var RU_MONTH_RE = "(?:январ\\S*|феврал\\S*|марта?\\S*|апрел\\S*|мая?|июн\\S*|июл\\S*|августа?\\S*|сентябр\\S*|октябр\\S*|ноябр\\S*|декабр\\S*)";
+
+function parseRuDate(text) {
+  if (!text) return null;
+  var t = text.replace(/\s+/g, " ").trim();
+  var m;
+  // Pattern 1: DD.MM – DD.MM
+  m = t.match(/(\d{1,2})\.(\d{2})\s*[–—\-]\s*(\d{1,2})\.(\d{2})/);
+  if (m) return { startMonth: +m[2] - 1, startDay: +m[1], endMonth: +m[4] - 1, endDay: +m[3], approx: false, orig: t };
+  // Pattern 2: DD month – DD month
+  var re2 = new RegExp("(\\d{1,2})\\s+(" + RU_MONTH_RE + ")\\s*[–—\\-]\\s*(\\d{1,2})\\s+(" + RU_MONTH_RE + ")", "i");
+  m = t.match(re2);
+  if (m) { var sm = ruMonthIdx(m[2]), em = ruMonthIdx(m[4]); if (sm >= 0 && em >= 0) return { startMonth: sm, startDay: +m[1], endMonth: em, endDay: +m[3], approx: false, orig: t }; }
+  // Pattern 3: DD–DD month (range within one month)
+  var re3 = new RegExp("(\\d{1,2})\\s*[–—\\-]\\s*(\\d{1,2})\\s+(" + RU_MONTH_RE + ")", "i");
+  m = t.match(re3);
+  if (m) { var mo = ruMonthIdx(m[3]); if (mo >= 0) return { startMonth: mo, startDay: +m[1], endMonth: mo, endDay: +m[2], approx: false, orig: t }; }
+  // Pattern 4: До DD month
+  var re4 = new RegExp("[Дд]о\\s+(\\d{1,2})\\s+(" + RU_MONTH_RE + ")", "i");
+  m = t.match(re4);
+  if (m) { var mo4 = ruMonthIdx(m[2]); if (mo4 >= 0) { var sd = +m[1] - 21; if (sd < 1) { var pm = mo4 === 0 ? 11 : mo4 - 1; return { startMonth: pm, startDay: 15, endMonth: mo4, endDay: +m[1], approx: true, orig: t }; } return { startMonth: mo4, startDay: 1, endMonth: mo4, endDay: +m[1], approx: true, orig: t }; } }
+  // Pattern 5: 1-я неделя/декада month
+  var re5 = new RegExp("1-я\\s+(?:неделя|декада)\\s+(" + RU_MONTH_RE + ")", "i");
+  m = t.match(re5);
+  if (m) { var mo5 = ruMonthIdx(m[1]); if (mo5 >= 0) return { startMonth: mo5, startDay: 1, endMonth: mo5, endDay: 10, approx: true, orig: t }; }
+  // Pattern 6: month–month (range of months)
+  var re6 = new RegExp("(" + RU_MONTH_RE + ")\\s*[–—\\-]\\s*(" + RU_MONTH_RE + ")", "i");
+  m = t.match(re6);
+  if (m) { var sm6 = ruMonthIdx(m[1]), em6 = ruMonthIdx(m[2]); if (sm6 >= 0 && em6 >= 0 && sm6 !== em6) return { startMonth: sm6, startDay: 1, endMonth: em6, endDay: 28, approx: true, orig: t }; }
+  // Pattern 7: Standalone month name like "Август (...)"
+  var re7 = new RegExp("^(" + RU_MONTH_RE + ")\\b", "i");
+  m = t.match(re7);
+  if (m) { var mo7 = ruMonthIdx(m[1]); if (mo7 >= 0) return { startMonth: mo7, startDay: 1, endMonth: mo7, endDay: 28, approx: true, orig: t }; }
+  // Pattern 8: "Декабрь и июнь (1–15 числа)" — special dual-month reference, extract first
+  var re8 = new RegExp("(" + RU_MONTH_RE + ")\\s+и\\s+(" + RU_MONTH_RE + ")\\s*\\((\\d{1,2})[–—\\-](\\d{1,2})", "i");
+  m = t.match(re8);
+  if (m) { var m1 = ruMonthIdx(m[1]), m2 = ruMonthIdx(m[2]); if (m1 >= 0 && m2 >= 0) return { startMonth: m2, startDay: +m[3], endMonth: m2, endDay: +m[4], approx: false, orig: t, altMonth: m1, altStartDay: +m[3], altEndDay: +m[4] }; }
+  return null;
+}
+
+function buildTimelineData(unis) {
+  var summer = [], winter = [], vagueSum = [], vagueWin = [];
+  for (var i = 0; i < unis.length; i++) {
+    var u = unis[i];
+    var sp = parseRuDate(u.summer);
+    if (sp) {
+      // check if it falls in summer range (Apr-Oct)
+      if (sp.startMonth >= 3 && sp.startMonth <= 9) {
+        summer.push({ uni: u, parsed: sp });
+      } else if (sp.altMonth !== undefined && sp.altMonth >= 3 && sp.altMonth <= 9) {
+        summer.push({ uni: u, parsed: { startMonth: sp.altMonth, startDay: sp.altStartDay, endMonth: sp.altMonth, endDay: sp.altEndDay, approx: sp.approx, orig: sp.orig } });
+      } else {
+        summer.push({ uni: u, parsed: sp });
+      }
+    } else { vagueSum.push(u); }
+    var wp = parseRuDate(u.winter);
+    if (wp) {
+      // check winter range (Oct-Mar)
+      if (wp.startMonth >= 10 || wp.startMonth <= 3) {
+        winter.push({ uni: u, parsed: wp });
+      } else if (wp.altMonth !== undefined && (wp.altMonth >= 10 || wp.altMonth <= 3)) {
+        winter.push({ uni: u, parsed: { startMonth: wp.altMonth, startDay: wp.altStartDay, endMonth: wp.altMonth, endDay: wp.altEndDay, approx: wp.approx, orig: wp.orig } });
+      } else {
+        winter.push({ uni: u, parsed: wp });
+      }
+    } else { vagueWin.push(u); }
+  }
+  function sortKey(e, months) {
+    var idx = months.indexOf(e.parsed.startMonth);
+    if (idx < 0) idx = 99;
+    return idx * 31 + (e.parsed.startDay || 1);
+  }
+  var sumMonths = [3, 4, 5, 6, 7, 8, 9];
+  var winMonths = [10, 11, 0, 1, 2, 3];
+  summer.sort(function(a, b) { return sortKey(a, sumMonths) - sortKey(b, sumMonths); });
+  winter.sort(function(a, b) { return sortKey(a, winMonths) - sortKey(b, winMonths); });
+  return { summer: summer, winter: winter, vagueSum: vagueSum, vagueWin: vagueWin };
+}
+
+function tlDatePos(month, day, waveMonths, trackW) {
+  var idx = waveMonths.indexOf(month);
+  if (idx < 0) return null;
+  var mw = trackW / waveMonths.length;
+  var frac = ((day || 1) - 1) / 30;
+  return idx * mw + frac * mw;
+}
+
+function tlIsCurrent(entry, today) {
+  var tm = today.getMonth(), td = today.getDate();
+  var sm = entry.parsed.startMonth, sd = entry.parsed.startDay || 1;
+  var em = entry.parsed.endMonth, ed = entry.parsed.endDay || 28;
+  function lin(m) {
+    if (em < sm && m <= em) return m + 12;
+    return m;
+  }
+  var tv = lin(tm) * 31 + td;
+  var sv = lin(sm) * 31 + sd;
+  var ev = lin(em) * 31 + ed;
+  return tv >= sv && tv <= ev;
+}
+
+var TL_MONTH_SHORT = ["ЯНВ","ФЕВ","МАР","АПР","МАЙ","ИЮН","ИЮЛ","АВГ","СЕН","ОКТ","НОЯ","ДЕК"];
+
+function TimelineBar(_ref) {
+  var entry = _ref.entry, waveMonths = _ref.waveMonths, trackW = _ref.trackW, onSel = _ref.onSel, isCurrent = _ref.isCurrent;
+  var _useState = useState(false), hover = _useState[0], setHover = _useState[1];
+  var p = entry.parsed;
+  var left = tlDatePos(p.startMonth, p.startDay, waveMonths, trackW);
+  var right = tlDatePos(p.endMonth, p.endDay, waveMonths, trackW);
+  if (left === null || right === null) return null;
+  var w = Math.max(right - left, 4);
+  var cls = "tl-bar" + (p.approx ? " approx" : "") + (isCurrent ? " current" : "");
+  return React.createElement("div", { className: "tl-row" },
+    React.createElement("div", {
+      className: "tl-row-label",
+      title: entry.uni.name || entry.uni.abbr,
+      onClick: function() { onSel(entry.uni); }
+    }, entry.uni.abbr),
+    React.createElement("div", { className: "tl-row-track" },
+      React.createElement("div", {
+        className: cls,
+        style: { left: left + "px", width: w + "px" },
+        onMouseEnter: function() { setHover(true); },
+        onMouseLeave: function() { setHover(false); },
+        onClick: function() { onSel(entry.uni); }
+      },
+        hover && React.createElement("div", { className: "tl-tip" },
+          React.createElement("div", { style: { fontFamily: "'Unbounded',sans-serif", fontSize: "9px", marginBottom: "4px", opacity: .7 } }, entry.uni.abbr),
+          p.orig
+        )
+      )
+    )
+  );
+}
+
+function TimelineVagueList(_ref) {
+  var entries = _ref.entries, wave = _ref.wave, onSel = _ref.onSel;
+  var _useState = useState(false), exp = _useState[0], setExp = _useState[1];
+  if (!entries.length) return null;
+  var isSummer = wave === "summer";
+  return React.createElement("div", { className: "tl-vague" },
+    React.createElement("div", { className: "tl-vague-hd", onClick: function() { setExp(!exp); } },
+      React.createElement("span", { className: "chev" + (exp ? " o" : "") }, "▾"),
+      " Даты уточняются (" + entries.length + " " + (entries.length === 1 ? "вуз" : entries.length < 5 ? "вуза" : "вузов") + ")"
+    ),
+    exp && React.createElement("div", { className: "tl-vague-body" },
+      entries.map(function(uni) {
+        return React.createElement("div", { key: uni.id, className: "tl-vague-item" },
+          React.createElement("span", {
+            className: "tl-vague-abbr",
+            onClick: function() { onSel(uni); }
+          }, uni.abbr),
+          React.createElement("span", { className: "tl-vague-text" },
+            isSummer ? (uni.summer || "Уточнять на сайте") : (uni.winter || "Уточнять на сайте")
+          )
+        );
+      })
+    )
+  );
+}
+
+function TimelineWave(_ref) {
+  var wave = _ref.wave, entries = _ref.entries, vagueEntries = _ref.vagueEntries, onSel = _ref.onSel, containerWidth = _ref.containerWidth;
+  var isSummer = wave === "summer";
+  var waveMonths = isSummer ? [3, 4, 5, 6, 7, 8, 9] : [10, 11, 0, 1, 2, 3];
+  var labelW = containerWidth < 640 ? 55 : 80;
+  var trackW = containerWidth - labelW - 32;
+  if (trackW < 100) trackW = 100;
+  var today = new Date();
+  var todayPos = tlDatePos(today.getMonth(), today.getDate(), waveMonths, trackW);
+  var mw = trackW / waveMonths.length;
+
+  return React.createElement("div", { className: "tl-wave " + (isSummer ? "tl-summer" : "tl-winter") },
+    React.createElement("div", { className: "tl-wave-title" },
+      isSummer ? "☀️  ЛЕТНЯЯ ВОЛНА (осенний семестр)" : "❄️  ЗИМНЯЯ ВОЛНА (весенний семестр)"
+    ),
+    React.createElement("div", { className: "tl-chart" },
+      // grid lines
+      React.createElement("div", { className: "tl-grid-lines", style: { left: labelW + "px", right: "0" } },
+        waveMonths.map(function(mo, i) {
+          return React.createElement("div", { key: mo, className: "tl-grid-line", style: { left: (i * mw) + "px" } });
+        })
+      ),
+      // axis
+      React.createElement("div", { className: "tl-axis" },
+        React.createElement("div", { className: "tl-axis-label" }),
+        React.createElement("div", { className: "tl-axis-months", style: { width: trackW + "px" } },
+          waveMonths.map(function(mo) {
+            return React.createElement("div", {
+              key: mo,
+              className: "tl-axis-month" + (mo === today.getMonth() ? " cur" : "")
+            }, TL_MONTH_SHORT[mo]);
+          })
+        )
+      ),
+      // bars
+      entries.map(function(entry, idx) {
+        return React.createElement(TimelineBar, {
+          key: entry.uni.id + "-" + idx,
+          entry: entry,
+          waveMonths: waveMonths,
+          trackW: trackW,
+          onSel: onSel,
+          isCurrent: tlIsCurrent(entry, today)
+        });
+      }),
+      // today line
+      todayPos !== null && React.createElement("div", {
+        className: "tl-today",
+        style: { left: (labelW + todayPos) + "px" }
+      },
+        React.createElement("div", { className: "tl-today-tag" }, "СЕГОДНЯ")
+      ),
+      entries.length === 0 && React.createElement("div", {
+        style: { padding: "12px 0", textAlign: "center", fontSize: "12px", color: "var(--muted)" }
+      }, "Нет вузов с точными датами для этой волны")
+    ),
+    // mobile cards
+    React.createElement("div", { className: "tl-cards" },
+      entries.map(function(entry, idx) {
+        var p = entry.parsed;
+        var isCur = tlIsCurrent(entry, today);
+        var rangeText = "";
+        if (p.startDay && p.endDay) {
+          rangeText = p.startDay + " " + TL_MONTH_SHORT[p.startMonth].toLowerCase() + " – " + p.endDay + " " + TL_MONTH_SHORT[p.endMonth].toLowerCase();
+        } else {
+          rangeText = TL_MONTH_SHORT[p.startMonth] + " – " + TL_MONTH_SHORT[p.endMonth];
+        }
+        return React.createElement("div", {
+          key: entry.uni.id + "-m-" + idx,
+          className: "tl-card" + (isCur ? " current" : ""),
+          onClick: function() { onSel(entry.uni); }
+        },
+          React.createElement("div", { className: "tl-card-abbr" }, entry.uni.abbr),
+          React.createElement("div", { className: "tl-card-range" + (p.approx ? " approx" : "") }, rangeText)
+        );
+      })
+    ),
+    React.createElement(TimelineVagueList, { entries: vagueEntries, wave: wave, onSel: onSel })
+  );
+}
+
+function TimelineSection(_ref) {
+  var onSel = _ref.onSel;
+  var _useState = useState("all"), wf = _useState[0], setWf = _useState[1];
+  var ref = useRef(null);
+  var _useState2 = useState(800), cw = _useState2[0], setCw = _useState2[1];
+
+  useEffect(function() {
+    if (!ref.current) return;
+    var ro = new ResizeObserver(function(entries) {
+      for (var i = 0; i < entries.length; i++) setCw(entries[i].contentRect.width);
+    });
+    ro.observe(ref.current);
+    return function() { ro.disconnect(); };
+  }, []);
+
+  var data = useMemo(function() { return buildTimelineData(UNIS); }, []);
+
+  return React.createElement("div", { ref: ref, className: "tl-section" },
+    React.createElement("div", { className: "tl-header" },
+      React.createElement("div", { className: "tl-title" },
+        React.createElement("div", { className: "tl-icon" }, "📅"),
+        "ТАЙМЛАЙН ПОДАЧИ ЗАЯВЛЕНИЙ"
+      ),
+      React.createElement("div", { className: "tl-toggles" },
+        [["all", "Все волны"], ["summer", "☀ Летняя"], ["winter", "❄ Зимняя"]].map(function(pair) {
+          return React.createElement("button", {
+            key: pair[0],
+            className: "chip" + (wf === pair[0] ? " on" : ""),
+            onClick: function() { setWf(pair[0]); }
+          }, pair[1]);
+        })
+      )
+    ),
+    (wf === "all" || wf === "summer") &&
+      React.createElement(TimelineWave, {
+        wave: "summer", entries: data.summer, vagueEntries: data.vagueSum, onSel: onSel, containerWidth: cw
+      }),
+    (wf === "all" || wf === "winter") &&
+      React.createElement(TimelineWave, {
+        wave: "winter", entries: data.winter, vagueEntries: data.vagueWin, onSel: onSel, containerWidth: cw
+      })
+  );
+}
+/* ===== END TIMELINE ===== */
+
 function Sec({ title, icon, children, open0 = true }) {
   const [open, setOpen] = useState(open0);
   return React.createElement(
@@ -1244,6 +1546,7 @@ function MainTable({ onSel }) {
         )
       )
     ),
+    React.createElement(TimelineSection, { onSel: onSel }),
     React.createElement(
       "div",
       { className: "ctrls" },
@@ -1418,9 +1721,43 @@ function MainTable({ onSel }) {
       )
     ),
     React.createElement(
-      Sec,
-      { title: "ГЛОБАЛЬНЫЙ ПОИСК ПО ВСЕМ ВАКАНТНЫМ МЕСТАМ", icon: "🌐", open0: false },
-      React.createElement(GlobalVacancySec, { onSel })
+      "div",
+      { style: { maxWidth: "1300px", margin: "0 auto", padding: "0 24px 20px" } },
+      React.createElement(
+        "a",
+        {
+          href: "./search.html",
+          style: {
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            background: "var(--panel)",
+            border: "1px solid var(--border)",
+            borderRadius: "10px",
+            padding: "16px 20px",
+            textDecoration: "none",
+            color: "var(--text)",
+            transition: "border-color .15s, background .15s",
+          },
+          onMouseOver: function(e) { e.currentTarget.style.borderColor = "var(--gold)"; },
+          onMouseOut: function(e) { e.currentTarget.style.borderColor = "var(--border)"; },
+        },
+        React.createElement("span", { style: { fontSize: "24px" } }, "🌐"),
+        React.createElement(
+          "div",
+          null,
+          React.createElement(
+            "div",
+            { style: { fontFamily: "'Unbounded',sans-serif", fontSize: "12px", fontWeight: "600", color: "var(--gold)", letterSpacing: ".05em", marginBottom: "4px" } },
+            "ГЛОБАЛЬНЫЙ ПОИСК ПО ВСЕМ ВАКАНТНЫМ МЕСТАМ"
+          ),
+          React.createElement(
+            "div",
+            { style: { fontSize: "12px", color: "var(--muted)" } },
+            "Поиск по всем направлениям, программам и вузам одновременно с расширенными фильтрами →"
+          )
+        )
+      )
     )
   );
 }
@@ -1497,6 +1834,12 @@ function App() {
         React.createElement("span", null, "СПб")
       ),
       React.createElement("div", { className: "hdr-sub" }, "Портал вакантных мест для перевода"),
+      !selectedUni &&
+        React.createElement(
+          "a",
+          { className: "back-btn", href: "./search.html", style: { marginLeft: "auto" } },
+          "🌐 Глобальный поиск"
+        ),
       selectedUni &&
         React.createElement(
           "button",
