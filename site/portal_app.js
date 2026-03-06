@@ -221,10 +221,10 @@ function getVacanciesForUni(uni) {
 
 /* ===== TIMELINE: date parser + components ===== */
 var RU_MONTH_STEMS = [
-  ["январ", 0], ["феврал", 1], ["март", 2], ["мар", 2], ["апрел", 3],
+  ["январ", 0], ["янв", 0], ["феврал", 1], ["фев", 1], ["март", 2], ["мар", 2], ["апрел", 3],
   ["май", 4], ["мая", 4], ["мае", 4], ["июн", 5], ["июл", 6],
-  ["август", 7], ["авг", 7], ["сентябр", 8], ["октябр", 9],
-  ["ноябр", 10], ["декабр", 11], ["дек", 11]
+  ["август", 7], ["авг", 7], ["сентябр", 8], ["сен", 8], ["октябр", 9], ["окт", 9],
+  ["ноябр", 10], ["ноя", 10], ["декабр", 11], ["дек", 11]
 ];
 function ruMonthIdx(s) {
   if (!s) return -1;
@@ -234,7 +234,7 @@ function ruMonthIdx(s) {
   }
   return -1;
 }
-var RU_MONTH_RE = "(?:январ\\S*|феврал\\S*|марта?\\S*|апрел\\S*|мая?|июн\\S*|июл\\S*|августа?\\S*|сентябр\\S*|октябр\\S*|ноябр\\S*|декабр\\S*)";
+var RU_MONTH_RE = "(?:январ\S*|феврал\S*|марта?\S*|апрел\S*|мая?|июн\S*|июл\S*|августа?\S*|сентябр\S*|октябр\S*|ноябр\S*|декабр\S*|янв|фев|мар|авг|сен|окт|ноя|дек)";
 
 function parseRuDate(text) {
   if (!text) return null;
@@ -263,8 +263,8 @@ function parseRuDate(text) {
   var re6 = new RegExp("(" + RU_MONTH_RE + ")\\s*[–—\\-]\\s*(" + RU_MONTH_RE + ")", "i");
   m = t.match(re6);
   if (m) { var sm6 = ruMonthIdx(m[1]), em6 = ruMonthIdx(m[2]); if (sm6 >= 0 && em6 >= 0 && sm6 !== em6) return { startMonth: sm6, startDay: 1, endMonth: em6, endDay: 28, approx: true, orig: t }; }
-  // Pattern 7: Standalone month name like "Август (...)"
-  var re7 = new RegExp("^(" + RU_MONTH_RE + ")\\b", "i");
+  // Pattern 7: Standalone month name like "Август (...)" or month in parentheses "(август)"
+  var re7 = new RegExp("(?:^|[\\(\\s])(" + RU_MONTH_RE + ")(?=[\\s\\)\\;,.]|$)", "i");
   m = t.match(re7);
   if (m) { var mo7 = ruMonthIdx(m[1]); if (mo7 >= 0) return { startMonth: mo7, startDay: 1, endMonth: mo7, endDay: 28, approx: true, orig: t }; }
   // Pattern 8: "Декабрь и июнь (1–15 числа)" — special dual-month reference, extract first
@@ -286,7 +286,7 @@ function buildTimelineData(unis) {
       } else if (sp.altMonth !== undefined && sp.altMonth >= 3 && sp.altMonth <= 9) {
         summer.push({ uni: u, parsed: { startMonth: sp.altMonth, startDay: sp.altStartDay, endMonth: sp.altMonth, endDay: sp.altEndDay, approx: sp.approx, orig: sp.orig } });
       } else {
-        summer.push({ uni: u, parsed: sp });
+        vagueSum.push(u); // parsed but out of summer range
       }
     } else { vagueSum.push(u); }
     var wp = parseRuDate(u.winter);
@@ -297,7 +297,7 @@ function buildTimelineData(unis) {
       } else if (wp.altMonth !== undefined && (wp.altMonth >= 10 || wp.altMonth <= 3)) {
         winter.push({ uni: u, parsed: { startMonth: wp.altMonth, startDay: wp.altStartDay, endMonth: wp.altMonth, endDay: wp.altEndDay, approx: wp.approx, orig: wp.orig } });
       } else {
-        winter.push({ uni: u, parsed: wp });
+        vagueWin.push(u); // parsed but out of winter range
       }
     } else { vagueWin.push(u); }
   }
