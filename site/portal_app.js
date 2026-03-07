@@ -234,25 +234,26 @@ function ruMonthIdx(s) {
   }
   return -1;
 }
-var RU_MONTH_RE = "(?:январ\S*|феврал\S*|марта?\S*|апрел\S*|мая?|июн\S*|июл\S*|августа?\S*|сентябр\S*|октябр\S*|ноябр\S*|декабр\S*|янв|фев|мар|авг|сен|окт|ноя|дек)";
+var RU_MONTH_RE = "(?:январ\\S*|феврал\\S*|марта?\\S*|апрел\\S*|мая?|июн\\S*|июл\\S*|августа?\\S*|сентябр\\S*|октябр\\S*|ноябр\\S*|декабр\\S*|янв|фев|мар|авг|сен|окт|ноя|дек)";
 
 function parseRuDate(text) {
   if (!text) return null;
   var t = text.replace(/\s+/g, " ").trim();
   var m;
+  var YEAR_OPT = "(?:\\s+\\d{4})?";
   // Pattern 1: DD.MM – DD.MM
   m = t.match(/(\d{1,2})\.(\d{2})\s*[–—\-]\s*(\d{1,2})\.(\d{2})/);
   if (m) return { startMonth: +m[2] - 1, startDay: +m[1], endMonth: +m[4] - 1, endDay: +m[3], approx: false, orig: t };
   // Pattern 2: DD month – DD month
-  var re2 = new RegExp("(\\d{1,2})\\s+(" + RU_MONTH_RE + ")\\s*[–—\\-]\\s*(\\d{1,2})\\s+(" + RU_MONTH_RE + ")", "i");
+  var re2 = new RegExp("(\\d{1,2})\\s+(" + RU_MONTH_RE + ")" + YEAR_OPT + "\\s*[–—\\-]\\s*(\\d{1,2})\\s+(" + RU_MONTH_RE + ")" + YEAR_OPT, "i");
   m = t.match(re2);
   if (m) { var sm = ruMonthIdx(m[2]), em = ruMonthIdx(m[4]); if (sm >= 0 && em >= 0) return { startMonth: sm, startDay: +m[1], endMonth: em, endDay: +m[3], approx: false, orig: t }; }
   // Pattern 3: DD–DD month (range within one month)
-  var re3 = new RegExp("(\\d{1,2})\\s*[–—\\-]\\s*(\\d{1,2})\\s+(" + RU_MONTH_RE + ")", "i");
+  var re3 = new RegExp("(\\d{1,2})\\s*[–—\\-]\\s*(\\d{1,2})\\s+(" + RU_MONTH_RE + ")" + YEAR_OPT, "i");
   m = t.match(re3);
   if (m) { var mo = ruMonthIdx(m[3]); if (mo >= 0) return { startMonth: mo, startDay: +m[1], endMonth: mo, endDay: +m[2], approx: false, orig: t }; }
-  // Pattern 4: До DD month
-  var re4 = new RegExp("[Дд]о\\s+(\\d{1,2})\\s+(" + RU_MONTH_RE + ")", "i");
+  // Pattern 4: До DD month / Не позднее DD month
+  var re4 = new RegExp("(?:[Дд]о|[Нн]е\\s+позднее)\\s+(\\d{1,2})\\s+(" + RU_MONTH_RE + ")" + YEAR_OPT, "i");
   m = t.match(re4);
   if (m) { var mo4 = ruMonthIdx(m[2]); if (mo4 >= 0) { var sd = +m[1] - 21; if (sd < 1) { var pm = mo4 === 0 ? 11 : mo4 - 1; return { startMonth: pm, startDay: 15, endMonth: mo4, endDay: +m[1], approx: true, orig: t }; } return { startMonth: mo4, startDay: 1, endMonth: mo4, endDay: +m[1], approx: true, orig: t }; } }
   // Pattern 5: 1-я неделя/декада month
@@ -274,31 +275,54 @@ function parseRuDate(text) {
   return null;
 }
 
+function tlNormalizeParsedForWave(parsed, waveMonths) {
+  if (!parsed) return null;
+  if (waveMonths.indexOf(parsed.startMonth) >= 0) return parsed;
+  if (parsed.altMonth !== undefined && waveMonths.indexOf(parsed.altMonth) >= 0) {
+    return {
+      startMonth: parsed.altMonth,
+      startDay: parsed.altStartDay,
+      endMonth: parsed.altMonth,
+      endDay: parsed.altEndDay,
+      approx: parsed.approx,
+      orig: parsed.orig
+    };
+  }
+  return null;
+}
+
+function parseRuDateForWave(text, waveMonths) {
+  var direct = tlNormalizeParsedForWave(parseRuDate(text), waveMonths);
+  if (direct) return direct;
+
+  var source = String(text || "").replace(/\u00a0/g, " ");
+  var parts = source
+    .split(/\s*;\s*/g)
+    .map(function(part) { return part.trim(); })
+    .filter(Boolean);
+
+  for (var i = 0; i < parts.length; i++) {
+    var parsed = tlNormalizeParsedForWave(parseRuDate(parts[i]), waveMonths);
+    if (parsed) return parsed;
+  }
+  return null;
+}
+
 function buildTimelineData(unis) {
   var summer = [], winter = [], vagueSum = [], vagueWin = [];
+  var sumMonths = [3, 4, 5, 6, 7, 8, 9];
+  var winMonths = [10, 11, 0, 1, 2, 3];
   for (var i = 0; i < unis.length; i++) {
     var u = unis[i];
-    var sp = parseRuDate(u.summer);
+    var sp = parseRuDateForWave(u.summer, sumMonths);
     if (sp) {
-      // check if it falls in summer range (Apr-Oct)
-      if (sp.startMonth >= 3 && sp.startMonth <= 9) {
-        summer.push({ uni: u, parsed: sp });
-      } else if (sp.altMonth !== undefined && sp.altMonth >= 3 && sp.altMonth <= 9) {
-        summer.push({ uni: u, parsed: { startMonth: sp.altMonth, startDay: sp.altStartDay, endMonth: sp.altMonth, endDay: sp.altEndDay, approx: sp.approx, orig: sp.orig } });
-      } else {
-        vagueSum.push(u); // parsed but out of summer range
-      }
+      var vpS = u.vacPubSummer ? parseRuDate(u.vacPubSummer) : null;
+      summer.push({ uni: u, parsed: sp, vacPub: vpS });
     } else { vagueSum.push(u); }
-    var wp = parseRuDate(u.winter);
+    var wp = parseRuDateForWave(u.winter, winMonths);
     if (wp) {
-      // check winter range (Oct-Mar)
-      if (wp.startMonth >= 10 || wp.startMonth <= 3) {
-        winter.push({ uni: u, parsed: wp });
-      } else if (wp.altMonth !== undefined && (wp.altMonth >= 10 || wp.altMonth <= 3)) {
-        winter.push({ uni: u, parsed: { startMonth: wp.altMonth, startDay: wp.altStartDay, endMonth: wp.altMonth, endDay: wp.altEndDay, approx: wp.approx, orig: wp.orig } });
-      } else {
-        vagueWin.push(u); // parsed but out of winter range
-      }
+      var vpW = u.vacPubWinter ? parseRuDate(u.vacPubWinter) : null;
+      winter.push({ uni: u, parsed: wp, vacPub: vpW });
     } else { vagueWin.push(u); }
   }
   function sortKey(e, months) {
@@ -306,8 +330,6 @@ function buildTimelineData(unis) {
     if (idx < 0) idx = 99;
     return idx * 31 + (e.parsed.startDay || 1);
   }
-  var sumMonths = [3, 4, 5, 6, 7, 8, 9];
-  var winMonths = [10, 11, 0, 1, 2, 3];
   summer.sort(function(a, b) { return sortKey(a, sumMonths) - sortKey(b, sumMonths); });
   winter.sort(function(a, b) { return sortKey(a, winMonths) - sortKey(b, winMonths); });
   return { summer: summer, winter: winter, vagueSum: vagueSum, vagueWin: vagueWin };
@@ -338,7 +360,7 @@ function tlIsCurrent(entry, today) {
 var TL_MONTH_SHORT = ["ЯНВ","ФЕВ","МАР","АПР","МАЙ","ИЮН","ИЮЛ","АВГ","СЕН","ОКТ","НОЯ","ДЕК"];
 
 function TimelineBar(_ref) {
-  var entry = _ref.entry, waveMonths = _ref.waveMonths, trackW = _ref.trackW, onSel = _ref.onSel, isCurrent = _ref.isCurrent;
+  var entry = _ref.entry, waveMonths = _ref.waveMonths, trackW = _ref.trackW, onSel = _ref.onSel, isCurrent = _ref.isCurrent, wave = _ref.wave;
   var _useState = useState(false), hover = _useState[0], setHover = _useState[1];
   var p = entry.parsed;
   var left = tlDatePos(p.startMonth, p.startDay, waveMonths, trackW);
@@ -346,6 +368,19 @@ function TimelineBar(_ref) {
   if (left === null || right === null) return null;
   var w = Math.max(right - left, 4);
   var cls = "tl-bar" + (p.approx ? " approx" : "") + (isCurrent ? " current" : "");
+  // Vacancy publication diamond marker
+  var vpDiamond = null;
+  if (entry.vacPub) {
+    var vpMid = Math.round(((entry.vacPub.startDay || 1) + (entry.vacPub.endDay || 28)) / 2);
+    var vpPos = tlDatePos(entry.vacPub.startMonth, vpMid, waveMonths, trackW);
+    if (vpPos !== null) {
+      vpDiamond = React.createElement("div", {
+        className: "tl-vp-diamond",
+        style: { left: vpPos + "px" },
+        title: "Публикация вакантных мест: " + (wave === "summer" ? entry.uni.vacPubSummer : entry.uni.vacPubWinter) || ""
+      });
+    }
+  }
   return React.createElement("div", { className: "tl-row" },
     React.createElement("div", {
       className: "tl-row-label",
@@ -353,6 +388,7 @@ function TimelineBar(_ref) {
       onClick: function() { onSel(entry.uni); }
     }, entry.uni.abbr),
     React.createElement("div", { className: "tl-row-track" },
+      vpDiamond,
       React.createElement("div", {
         className: cls,
         style: { left: left + "px", width: w + "px" },
@@ -362,7 +398,10 @@ function TimelineBar(_ref) {
       },
         hover && React.createElement("div", { className: "tl-tip" },
           React.createElement("div", { style: { fontFamily: "'Unbounded',sans-serif", fontSize: "9px", marginBottom: "4px", opacity: .7 } }, entry.uni.abbr),
-          p.orig
+          p.orig,
+          entry.vacPub && React.createElement("div", { style: { marginTop: "4px", fontSize: "10px", color: "#e57373" } },
+            "◆ Вакантные места: " + (wave === "summer" ? entry.uni.vacPubSummer : entry.uni.vacPubWinter)
+          )
         )
       )
     )
@@ -437,7 +476,8 @@ function TimelineWave(_ref) {
           waveMonths: waveMonths,
           trackW: trackW,
           onSel: onSel,
-          isCurrent: tlIsCurrent(entry, today)
+          isCurrent: tlIsCurrent(entry, today),
+          wave: wave
         });
       }),
       // today line
@@ -507,6 +547,17 @@ function TimelineSection(_ref) {
             onClick: function() { setWf(pair[0]); }
           }, pair[1]);
         })
+      )
+    ),
+    React.createElement("div", { className: "tl-legend" },
+      React.createElement("span", { className: "tl-legend-item" },
+        React.createElement("span", { className: "tl-legend-bar" }), " Подача заявлений"
+      ),
+      React.createElement("span", { className: "tl-legend-item" },
+        React.createElement("span", { className: "tl-legend-bar approx" }), " Примерные даты"
+      ),
+      React.createElement("span", { className: "tl-legend-item" },
+        React.createElement("span", { className: "tl-legend-diamond" }), " Публикация вакантных мест"
       )
     ),
     (wf === "all" || wf === "summer") &&
