@@ -13,16 +13,34 @@
 
 ## Требования
 
-- Python 3.10+
-- Виртуальное окружение `.venv` в корне проекта
-- Установленные зависимости в `.venv` (включая `openpyxl`, `requests`, `beautifulsoup4`, `pandas`, `pdfplumber`, `camelot-py`)
+- Для просмотра уже собранного сайта: Python 3.10+ на той системе, из которой вы запускаете сервер.
+- Для пересборки `portal_data.js` на Windows: Python 3.10+ и пакет `openpyxl`.
+- Для полной пересборки данных: удобнее использовать WSL / Linux и существующее окружение `.venv` в корне проекта.
+- Текущее `.venv` создано под WSL / Linux. Команды вида `.venv/bin/python` не нужно запускать из PowerShell.
 
-## Быстрый запуск (WSL / Linux)
+## Быстрый запуск готового сайта
+
+Если нужно просто открыть уже собранную версию сайта, пересборка данных не требуется.
+
+### PowerShell (Windows, основной вариант)
+
+```powershell
+cd "C:\путь\к\проекту"
+py -m http.server 8123 --directory site
+```
+
+Если проект у вас лежит на диске `C:` по пути `C:\сайт с вузвами`, команда будет такой:
+
+```powershell
+cd "C:\сайт с вузвами"
+py -m http.server 8123 --directory site
+```
+
+### WSL / Linux (альтернатива)
 
 ```bash
 cd "/mnt/c/сайт с вузвами"
-.venv/bin/python scripts/build_portal_data.py
-.venv/bin/python -m http.server 8123 --directory site
+python3 -m http.server 8123 --directory site
 ```
 
 Открыть в браузере:
@@ -32,6 +50,30 @@ cd "/mnt/c/сайт с вузвами"
 Остановка сервера:
 
 - `Ctrl+C`
+
+## Пересборка фронтенд-данных
+
+### PowerShell (Windows)
+
+Если вы меняли `site/data/universities.json`, шаблон HTML или скрипты сборки, можно пересобрать `portal_data.js` прямо из PowerShell:
+
+```powershell
+cd "C:\путь\к\проекту"
+py -m venv .venv-win
+.\.venv-win\Scripts\python.exe -m pip install openpyxl
+.\.venv-win\Scripts\python.exe scripts\build_portal_data.py
+.\.venv-win\Scripts\python.exe -m http.server 8123 --directory site
+```
+
+### WSL / Linux
+
+Если вы меняли `site/data/universities.json`, шаблон HTML или скрипты сборки, сначала пересоберите `portal_data.js`:
+
+```bash
+cd "/mnt/c/сайт с вузвами"
+.venv/bin/python scripts/build_portal_data.py
+.venv/bin/python -m http.server 8123 --directory site
+```
 
 ## Полная пересборка данных (WSL / Linux)
 
@@ -53,17 +95,13 @@ cd "/mnt/c/сайт с вузвами"
 .venv/bin/python -m http.server 8123 --directory site
 ```
 
-## Запуск из PowerShell (Windows)
+## Важно
 
-```powershell
-cd "<путь_к_проекту>"
-.\.venv\Scripts\python.exe scripts\build_portal_data.py
-.\.venv\Scripts\python.exe -m http.server 8123 --directory site
-```
-
-Открыть:
-
-- `http://localhost:8123/spb_transfer_portal.html`
+- Для обычного запуска сайта WSL не нужен.
+- Путь `/mnt/c/...` работает только внутри WSL. В PowerShell используйте обычный Windows-путь вида `C:\...`.
+- Команда `.venv/bin/python` работает только в WSL / Linux shell. В PowerShell используйте `py` или отдельное Windows-окружение, например `.venv-win`.
+- В PowerShell для простого просмотра сайта используйте `py -m http.server 8123 --directory site`.
+- Аргумент `--directory` должен содержать два обычных дефиса `--`, а не типографское тире `—`.
 
 ## Полезно
 
