@@ -310,7 +310,7 @@ function parseRuDateForWave(text, waveMonths) {
 
 function buildTimelineData(unis) {
   var summer = [], winter = [], vagueSum = [], vagueWin = [];
-  var sumMonths = [3, 4, 5, 6, 7, 8, 9];
+  var sumMonths = [2, 3, 4, 5, 6, 7, 8, 9];
   var winMonths = [10, 11, 0, 1, 2, 3];
   for (var i = 0; i < unis.length; i++) {
     var u = unis[i];
@@ -437,7 +437,7 @@ function TimelineVagueList(_ref) {
 function TimelineWave(_ref) {
   var wave = _ref.wave, entries = _ref.entries, vagueEntries = _ref.vagueEntries, onSel = _ref.onSel, containerWidth = _ref.containerWidth;
   var isSummer = wave === "summer";
-  var waveMonths = isSummer ? [3, 4, 5, 6, 7, 8, 9] : [10, 11, 0, 1, 2, 3];
+  var waveMonths = isSummer ? [2, 3, 4, 5, 6, 7, 8, 9] : [10, 11, 0, 1, 2, 3];
   var labelW = containerWidth < 640 ? 55 : 80;
   var trackW = containerWidth - labelW - 32;
   if (trackW < 100) trackW = 100;
