@@ -377,7 +377,7 @@ function TimelineBar(_ref) {
       vpDiamond = React.createElement("div", {
         className: "tl-vp-diamond",
         style: { left: vpPos + "px" },
-        title: "Публикация вакантных мест: " + (wave === "summer" ? entry.uni.vacPubSummer : entry.uni.vacPubWinter) || ""
+        title: "Публикация вакантных мест: " + ((wave === "summer" ? entry.uni.vacPubSummer : entry.uni.vacPubWinter) || "")
       });
     }
   }

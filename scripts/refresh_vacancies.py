@@ -135,8 +135,6 @@ def update_portal_data(universities: list[dict[str, Any]], portal_path: Path) ->
         }
 
     # Update portal unis + vacanciesById
-    total_rows = 0
-    loaded = 0
     vacancies_by_id: dict[str, list[dict[str, Any]]] = portal.get("vacanciesById", {})
 
     for uni in portal["unis"]:
@@ -158,10 +156,13 @@ def update_portal_data(universities: list[dict[str, Any]], portal_path: Path) ->
         uni["vacancyRowCount"] = len(rows)
 
         vacancies_by_id[str(uni["id"])] = rows
-        total_rows += len(rows)
-        if status == "ok" and rows:
-            loaded += 1
 
+    # Recompute stats from ALL data (not just refreshed universities)
+    total_rows = sum(len(rows) for rows in vacancies_by_id.values())
+    loaded = sum(
+        1 for u in portal["unis"]
+        if u["vacancyStatus"] == "ok" and u["vacancyRowCount"] > 0
+    )
     portal["generatedAt"] = datetime.now(timezone.utc).isoformat()
     portal["stats"] = {
         "totalUniversities": len(portal["unis"]),
