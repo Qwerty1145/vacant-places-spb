@@ -26,6 +26,8 @@ PROFILE_OVERRIDE_FIELDS = {
     "type",
     "summer",
     "winter",
+    "vacPubSummer",
+    "vacPubWinter",
     "notes",
     "dormInfo",
     "special",
@@ -457,6 +459,12 @@ def build_payload(
                 cleaned = clean_text(value)
                 if cleaned and field in PROFILE_OVERRIDE_FIELDS:
                     uni[field] = cleaned
+
+        if not clean_text(uni.get("vacPubSummer")) and clean_text(uni.get("vacancySource") or src):
+            uni["vacPubSummer"] = (
+                "Официальная таблица вакантных мест обновляется на странице вуза; "
+                "отдельная дата летней публикации не указана"
+            )
 
         unis.append(uni)
         vacancies_by_id[str(uni_id)] = rows
