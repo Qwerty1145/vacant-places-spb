@@ -1819,11 +1819,14 @@ function findUniById(uniId) {
   return UNIS.find((uni) => String(uni.id) === target) || null;
 }
 
-function buildUrlForUni(uniId) {
+function buildUrlForUni(uniId, rowKey) {
   const url = new URL(window.location.href);
   const target = String(uniId || "").trim();
+  const row = String(rowKey || "").trim();
   if (target) url.searchParams.set("uni", target);
   else url.searchParams.delete("uni");
+  if (target && row) url.searchParams.set("row", row);
+  else url.searchParams.delete("row");
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
@@ -1831,7 +1834,7 @@ function readNavState() {
   const state = window.history && typeof window.history.state === "object" ? window.history.state : {};
   const url = new URL(window.location.href);
   const uniId = String((state && state.uniId) || url.searchParams.get("uni") || "").trim();
-  const rowKey = String((state && state.rowKey) || "");
+  const rowKey = String((state && state.rowKey) || url.searchParams.get("row") || "").trim();
   return { uniId, rowKey };
 }
 
@@ -1843,7 +1846,7 @@ function App() {
 
   useEffect(() => {
     const nav = readNavState();
-    window.history.replaceState({ uniId: nav.uniId, rowKey: nav.rowKey }, "", buildUrlForUni(nav.uniId));
+    window.history.replaceState({ uniId: nav.uniId, rowKey: nav.rowKey }, "", buildUrlForUni(nav.uniId, nav.rowKey));
 
     const onPopState = () => {
       const current = readNavState();
@@ -1862,14 +1865,14 @@ function App() {
     window.history.pushState(
       { uniId: String(uni.id), rowKey },
       "",
-      buildUrlForUni(uni.id)
+      buildUrlForUni(uni.id, rowKey)
     );
   }
 
   function resetSelection() {
     setSelectedUni(null);
     setSelectedHighlightKey("");
-    window.history.pushState({ uniId: "", rowKey: "" }, "", buildUrlForUni(""));
+    window.history.pushState({ uniId: "", rowKey: "" }, "", buildUrlForUni("", ""));
   }
 
   return React.createElement(

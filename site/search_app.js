@@ -266,8 +266,15 @@ function GlobalSearch() {
   const visibleRows = showAll || filtered.length <= MAX_VISIBLE ? filtered : filtered.slice(0, MAX_VISIBLE);
   const isTrimmed = visibleRows.length < filtered.length;
 
+  function buildProfileUrl(uniId, rowKey) {
+    const params = new URLSearchParams();
+    params.set("uni", String(uniId || "").trim());
+    if (rowKey) params.set("row", String(rowKey));
+    return `./index.html?${params.toString()}`;
+  }
+
   function openProfile(uniId, rowKey) {
-    const url = `./index.html?uni=${encodeURIComponent(uniId)}`;
+    const url = buildProfileUrl(uniId, rowKey);
     window.open(url, "_blank");
   }
 
@@ -505,7 +512,12 @@ function GlobalSearch() {
                   React.createElement(
                     "td",
                     { onClick: (event) => event.stopPropagation() },
-                    uni && React.createElement("a", { className: "open-btn", href: `./index.html?uni=${uni.id}`, target: "_blank" }, "Профиль →")
+                    uni &&
+                      React.createElement(
+                        "a",
+                        { className: "open-btn", href: buildProfileUrl(uni.id, vacancyRowKey(row)), target: "_blank" },
+                        "Профиль →"
+                      )
                   )
                 );
               })
