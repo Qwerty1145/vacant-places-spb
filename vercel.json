@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/",
-      "destination": "/site/spb_transfer_portal.html"
+      "destination": "/site/index.html"
     },
     {
       "source": "/(.*)",
