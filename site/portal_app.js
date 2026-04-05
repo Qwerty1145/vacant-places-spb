@@ -152,6 +152,12 @@ function vacancyRowKey(row) {
   ].join("|");
 }
 
+function getVacancyRowRef(row, rowIndex) {
+  const direct = String((row && row.rowRef) || "").trim();
+  if (direct) return direct;
+  return `row-${rowIndex}`;
+}
+
 function normalizeLongText(value) {
   return String(value || "")
     .replace(/\u00a0/g, " ")
@@ -594,6 +600,10 @@ function Sec({ title, icon, children, open0 = true }) {
 
 function VacSec({ uni, highlightRowKey = "" }) {
   const allRows = getVacanciesForUni(uni);
+  const indexedRows = useMemo(
+    () => allRows.map((row, rowIndex) => ({ ...row, rowRef: getVacancyRowRef(row, rowIndex) })),
+    [allRows]
+  );
   const hasRows = allRows.length > 0;
   const [q, setQ] = useState("");
   const [fLv, setFL] = useState("all");
@@ -623,15 +633,15 @@ function VacSec({ uni, highlightRowKey = "" }) {
     );
   }
 
-  const levels = [...new Set(allRows.map((row) => levelNorm(row.level)).filter(Boolean))];
-  const forms = [...new Set(allRows.map((row) => formNorm(row.form)).filter(Boolean))];
-  const courses = [...new Set(allRows.map((row) => normCourse(row.course)).filter(Boolean))].sort((left, right) =>
+  const levels = [...new Set(indexedRows.map((row) => levelNorm(row.level)).filter(Boolean))];
+  const forms = [...new Set(indexedRows.map((row) => formNorm(row.form)).filter(Boolean))];
+  const courses = [...new Set(indexedRows.map((row) => normCourse(row.course)).filter(Boolean))].sort((left, right) =>
     new Intl.Collator("ru", { numeric: true, sensitivity: "base" }).compare(left, right)
   );
 
   const filtered = useMemo(() => {
     const collator = new Intl.Collator("ru", { numeric: true, sensitivity: "base" });
-    let rows = [...allRows];
+    let rows = [...indexedRows];
     if (q) {
       const needle = q.toLowerCase();
       rows = rows.filter((row) =>
@@ -659,7 +669,7 @@ function VacSec({ uni, highlightRowKey = "" }) {
       });
     }
     return rows;
-  }, [allRows, q, fLv, fFm, fCr, fBd, onlyPl, sb, sd]);
+  }, [indexedRows, q, fLv, fFm, fCr, fBd, onlyPl, sb, sd]);
 
   const totalBudget = filtered.reduce((sum, row) => sum + toNumber(row.budget), 0);
   const totalPaid = filtered.reduce((sum, row) => sum + toNumber(row.paid), 0);
@@ -884,8 +894,9 @@ function VacSec({ uni, highlightRowKey = "" }) {
                   )
                 )
               : filtered.map((row, index) => {
-                  const rowKey = vacancyRowKey(row);
-                  const isHighlighted = hasHighlight && rowKey === highlightRowKey;
+                  const rowRef = row.rowRef;
+                  const isHighlighted =
+                    hasHighlight && (rowRef === highlightRowKey || vacancyRowKey(row) === highlightRowKey);
                   const highlightStyle = isHighlighted
                     ? {
                         background: "rgba(235, 189, 68, .16)",
@@ -895,7 +906,7 @@ function VacSec({ uni, highlightRowKey = "" }) {
                   return React.createElement(
                     "tr",
                     {
-                      key: `${rowKey}-${index}`,
+                      key: rowRef || `row-${index}`,
                       ref: isHighlighted ? highlightRowRef : null,
                       style: highlightStyle,
                     },
@@ -950,13 +961,15 @@ function GlobalVacancySec({ onSel }) {
     const rows = [];
     for (const uni of UNIS) {
       const uniRows = getVacanciesForUni(uni);
-      for (const row of uniRows) {
+      for (let rowIndex = 0; rowIndex < uniRows.length; rowIndex += 1) {
+        const row = uniRows[rowIndex];
         rows.push({
           uniId: String(uni.id),
           uniName: uni.name || uni.abbr || "",
           uniAbbr: uni.abbr || uni.name || "",
           uniType: uni.type || "",
           uniDorm: Boolean(uni.dorm),
+          rowRef: getVacancyRowRef(row, rowIndex),
           code: String(row.code || ""),
           dir: String(row.dir || ""),
           program: String(row.program || ""),
@@ -1271,12 +1284,12 @@ function GlobalVacancySec({ onSel }) {
                   uni &&
                   onSel(uni, {
                     source: "global",
-                    rowKey: vacancyRowKey(row),
+                    rowKey: row.rowRef,
                   });
                 return React.createElement(
                   "tr",
                   {
-                    key: `${row.uniId}-${index}`,
+                    key: `${row.uniId}-${row.rowRef || index}`,
                     onClick: openProfile,
                     style: { cursor: uni ? "pointer" : "default" },
                   },

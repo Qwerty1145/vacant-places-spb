@@ -138,6 +138,12 @@ function vacancyRowKey(row) {
   ].join("|");
 }
 
+function getVacancyRowRef(row, rowIndex) {
+  const direct = String((row && row.rowRef) || "").trim();
+  if (direct) return direct;
+  return `row-${rowIndex}`;
+}
+
 function getVacanciesForUni(uni) {
   const key = String(uni.id);
   const rows = VACANCIES_BY_ID[key];
@@ -149,13 +155,15 @@ function GlobalSearch() {
     const rows = [];
     for (const uni of UNIS) {
       const uniRows = getVacanciesForUni(uni);
-      for (const row of uniRows) {
+      for (let rowIndex = 0; rowIndex < uniRows.length; rowIndex += 1) {
+        const row = uniRows[rowIndex];
         rows.push({
           uniId: String(uni.id),
           uniName: uni.name || uni.abbr || "",
           uniAbbr: uni.abbr || uni.name || "",
           uniType: uni.type || "",
           uniDorm: Boolean(uni.dorm),
+          rowRef: getVacancyRowRef(row, rowIndex),
           code: String(row.code || ""),
           dir: String(row.dir || ""),
           program: String(row.program || ""),
@@ -266,15 +274,15 @@ function GlobalSearch() {
   const visibleRows = showAll || filtered.length <= MAX_VISIBLE ? filtered : filtered.slice(0, MAX_VISIBLE);
   const isTrimmed = visibleRows.length < filtered.length;
 
-  function buildProfileUrl(uniId, rowKey) {
+  function buildProfileUrl(uniId, rowRef) {
     const params = new URLSearchParams();
     params.set("uni", String(uniId || "").trim());
-    if (rowKey) params.set("row", String(rowKey));
+    if (rowRef) params.set("row", String(rowRef));
     return `./index.html?${params.toString()}`;
   }
 
-  function openProfile(uniId, rowKey) {
-    const url = buildProfileUrl(uniId, rowKey);
+  function openProfile(uniId, rowRef) {
+    const url = buildProfileUrl(uniId, rowRef);
     window.open(url, "_blank");
   }
 
@@ -479,11 +487,11 @@ function GlobalSearch() {
               )
             : visibleRows.map((row, index) => {
                 const uni = uniById[row.uniId];
-                const handleClick = () => uni && openProfile(uni.id, vacancyRowKey(row));
+                const handleClick = () => uni && openProfile(uni.id, row.rowRef);
                 return React.createElement(
                   "tr",
                   {
-                    key: `${row.uniId}-${index}`,
+                    key: `${row.uniId}-${row.rowRef || index}`,
                     onClick: handleClick,
                     style: { cursor: uni ? "pointer" : "default" },
                   },
@@ -515,7 +523,7 @@ function GlobalSearch() {
                     uni &&
                       React.createElement(
                         "a",
-                        { className: "open-btn", href: buildProfileUrl(uni.id, vacancyRowKey(row)), target: "_blank" },
+                        { className: "open-btn", href: buildProfileUrl(uni.id, row.rowRef), target: "_blank" },
                         "Профиль →"
                       )
                   )
